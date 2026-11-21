@@ -39,10 +39,11 @@ The workflow fails unless all of these are true.
 | Tag does not match the `package.json` version | Tag the version exactly as `package.json` spells it, without a `v` prefix. |
 | Not the merge commit of a PR | Tag the commit that GitHub created when it merged the version PR, not a later commit. |
 | Not created and signed by GitHub | The PR was rebase-merged. Merge or squash a new version PR. |
-| No approval from anyone but the author | Someone other than the PR author must approve it. |
+| No approval of its head commit from anyone but the author | Someone other than the PR author must approve the PR's last commit. An approval of an earlier commit doesn't count. |
 | No ruleset requires a status check | Ask SKY UX to fix the ruleset. |
 | `publish` job waits and never starts | A release approver other than the person who pushed the tag must approve the deployment to `npm-publish`. |
 | `ENEEDAUTH` or another npm authentication error | The trusted publisher configuration is missing, wrong, expired or doesn't allow `npm publish`. Ask SKY UX to fix it. |
+| Can't take `latest` or `lts-v<major>` | A higher version in the same major is already on npm. Release a version above it instead. |
 | Must already exist there before trusted publishing | The package isn't on npm yet. Ask SKY UX to create it. |
 
 To retry a failed publish, re-run the failed jobs. A version that's already on npm with the same contents is skipped.

@@ -10,8 +10,8 @@ description: >-
 inputs:
   github-token:
     description: >-
-      Token for GitHub API reads. The calling job needs contents, pull-requests, checks and
-      statuses read permissions.
+      Token for GitHub API reads and for fetching the tagged commit object, which private repos
+      need. The calling job needs contents, pull-requests, checks and statuses read permissions.
     default: ${{ github.token }}
 
 outputs:

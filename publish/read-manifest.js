@@ -37,7 +37,7 @@ if (manifests.length !== 1) {
   problems.push(`${manifests.length} entries land on package.json`);
 } else {
   try {
-    manifest = JSON.parse(manifests[0].replace(/^﻿/, ''));
+    manifest = JSON.parse(manifests[0].replace(/^\uFEFF/, ''));
   } catch {
     problems.push('its package.json is not valid JSON');
   }
