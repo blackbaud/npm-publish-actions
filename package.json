@@ -1,0 +1,12 @@
+{
+  "name": "@blackbaud/npm-publish-actions",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GitHub Actions for publishing to npm",
+  "pipelineSettings": {},
+  "main": "index.js",
+  "scripts": {
+    "build": "true",
+    "test": "true"
+  }
+}

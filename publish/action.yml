@@ -1,0 +1,47 @@
+name: npm-publish publish
+description: >-
+  Publishes the tarballs from the build action to registry.npmjs.org with npm trusted publishing.
+  No checkout, no install, no package scripts. Publishes only the packages the verify action
+  approved. The calling job needs id-token: write and the environment named in each package's npm
+  trusted publisher (npm-publish).
+
+inputs:
+  name:
+    description: Package name, from the verify action.
+    required: true
+  version:
+    description: Package version, from the verify action.
+    required: true
+  publish:
+    description: '"true" to publish <name>@<version>, from the verify action.'
+    required: true
+  publish-types:
+    description: '"true" to publish <name>-types@<version>, from the verify action.'
+    required: true
+  artifact-name:
+    description: Artifact holding the tarballs, from the build action.
+    default: npm-packages
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ runner.temp }}/npm-packages
+
+    # Publishes with the npm that Node 24 bundles, so nothing is installed. publish.sh checks that
+    # it meets trusted publishing's minimum.
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+      with:
+        node-version: '24'
+
+    - name: Publish each tarball without running package scripts
+      shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+        VERSION: ${{ inputs.version }}
+        PUBLISH: ${{ inputs.publish }}
+        PUBLISH_TYPES: ${{ inputs.publish-types }}
+        PACKAGES_DIR: ${{ runner.temp }}/npm-packages
+      run: bash "$GITHUB_ACTION_PATH/publish.sh"

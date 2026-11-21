@@ -1,0 +1,65 @@
+# Publishes this repo's public npm packages when a version tag is pushed.
+# - Do not rename: npm trusted publishing matches this filename.
+# - Changes need approval from @engineeringsystem/ptg-es-team-all-skyuxservices.
+# - Job permissions and the environment live here, because actions can't set them.
+name: npm-publish
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+permissions: {}
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+      statuses: read
+    outputs:
+      name: ${{ steps.verify.outputs.name }}
+      version: ${{ steps.verify.outputs.version }}
+      publish: ${{ steps.verify.outputs.publish }}
+      publish-types: ${{ steps.verify.outputs.publish-types }}
+      node-version: ${{ steps.verify.outputs.node-version }}
+    steps:
+      - id: verify
+        uses: engineeringsystem/spm-publish-actions/verify@RELEASE_SHA # RELEASE_TAG
+
+  build:
+    needs: verify
+    if: needs.verify.outputs.publish == 'true' || needs.verify.outputs.publish-types == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: engineeringsystem/spm-publish-actions/build@RELEASE_SHA # RELEASE_TAG
+        with:
+          name: ${{ needs.verify.outputs.name }}
+          version: ${{ needs.verify.outputs.version }}
+          publish: ${{ needs.verify.outputs.publish }}
+          publish-types: ${{ needs.verify.outputs.publish-types }}
+          node-version: ${{ needs.verify.outputs.node-version }}
+
+  publish:
+    needs: [verify, build]
+    runs-on: ubuntu-24.04
+    environment: npm-publish
+    # One publish at a time across all of this repo's tags, so each one picks its dist-tag from
+    # the versions already on npm. GitHub keeps one pending job per group and cancels an older
+    # pending one; re-run a canceled publish job once the others finish.
+    concurrency:
+      group: npm-publish-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+    steps:
+      - uses: engineeringsystem/spm-publish-actions/publish@RELEASE_SHA # RELEASE_TAG
+        with:
+          name: ${{ needs.verify.outputs.name }}
+          version: ${{ needs.verify.outputs.version }}
+          publish: ${{ needs.verify.outputs.publish }}
+          publish-types: ${{ needs.verify.outputs.publish-types }}

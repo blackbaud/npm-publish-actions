@@ -1,0 +1,42 @@
+name: npm-publish verify
+description: >-
+  Checks that a version tag is the GitHub-signed merge commit of a reviewed PR into the default
+  branch or a <major>.x.x branch whose check runs all passed, that the tag equals the package.json
+  version, that nothing depends on @blackbaud-internal packages, that .nvmrc names a supported
+  Node version, and which packages pipelineSettings publish.
+  Uses GitHub API calls plus a fetch of the tagged commit object to verify its signature with
+  git verify-commit; never checks out or runs repository code.
+
+inputs:
+  github-token:
+    description: >-
+      Token for GitHub API reads. The calling job needs contents, pull-requests, checks and
+      statuses read permissions.
+    default: ${{ github.token }}
+
+outputs:
+  name:
+    description: Package name from package.json.
+    value: ${{ steps.verify.outputs.name }}
+  version:
+    description: Package version from package.json (equal to the tag).
+    value: ${{ steps.verify.outputs.version }}
+  publish:
+    description: '"true" when pipelineSettings.publishToNPM is true.'
+    value: ${{ steps.verify.outputs.publish }}
+  publish-types:
+    description: '"true" when pipelineSettings.publishTypesToNPM is true.'
+    value: ${{ steps.verify.outputs.publish-types }}
+  node-version:
+    description: Node version the build uses, from .nvmrc (22 without one). Set when publish or publish-types is true.
+    value: ${{ steps.verify.outputs.node-version }}
+
+runs:
+  using: composite
+  steps:
+    - id: verify
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      run: bash "$GITHUB_ACTION_PATH/verify.sh"

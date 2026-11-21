@@ -1,0 +1,95 @@
+name: npm-publish build
+description: >-
+  Mirrors the npm steps of the npm-package-oss ADO template: Node from the verify action, npm ci,
+  lint (if present), test:ci (else test), build, Prepare Package, Prepare Types Package. Packs each package to publish, checks it,
+  and uploads the tarballs. Runs repository and dependency code, so the calling job must not have
+  id-token: write.
+
+inputs:
+  name:
+    description: Package name, from the verify action.
+    required: true
+  version:
+    description: Package version, from the verify action.
+    required: true
+  publish:
+    description: '"true" to pack the main package from dist.'
+    required: true
+  publish-types:
+    description: '"true" to pack the <name>-types package from dist-types.'
+    required: true
+  node-version:
+    description: Node version to build with, from the verify action (.nvmrc, else 22).
+    required: true
+
+outputs:
+  artifact-name:
+    description: Name of the uploaded artifact holding the tarballs.
+    value: npm-packages
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      with:
+        persist-credentials: false
+
+    # Template "Setup Node": the version the verify action read from .nvmrc and checked, else 22.
+    # setup-node falls back to the runner's Node when node-version is empty, so require it.
+    - name: Check the Node version from verify
+      shell: bash
+      env:
+        NODE_VERSION: ${{ inputs.node-version }}
+      run: |
+        [[ -n $NODE_VERSION ]] || { echo "::error::node-version is required. Pass the verify action's node-version output."; exit 1; }
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install from the lockfile
+      shell: bash
+      run: |
+        [[ -f package-lock.json ]] || { echo "::error::A package-lock.json is required to publish."; exit 1; }
+        npm ci --no-audit --no-fund --legacy-peer-deps
+
+    - name: Lint (if the repo has a lint script)
+      shell: bash
+      run: npm run lint --if-present
+
+    - name: Test (test:ci if defined, else test)
+      shell: bash
+      run: if jq -e '.scripts["test:ci"]' package.json >/dev/null; then npm run test:ci; else npm test; fi
+
+    - name: Build
+      shell: bash
+      run: npm run build
+
+    - name: Prepare package
+      if: inputs.publish == 'true'
+      shell: bash
+      run: bash "$GITHUB_ACTION_PATH/prepare-package.sh"
+
+    - name: Prepare types package
+      if: inputs.publish-types == 'true'
+      shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+        VERSION: ${{ inputs.version }}
+      run: bash "$GITHUB_ACTION_PATH/prepare-types.sh"
+
+    - name: Pack and check what will publish
+      shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+        VERSION: ${{ inputs.version }}
+        PUBLISH: ${{ inputs.publish }}
+        PUBLISH_TYPES: ${{ inputs.publish-types }}
+        OUT_DIR: ${{ runner.temp }}/npm-packages
+      run: bash "$GITHUB_ACTION_PATH/pack.sh"
+
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: npm-packages
+        path: ${{ runner.temp }}/npm-packages/*.tgz
+        if-no-files-found: error
+        retention-days: 7
