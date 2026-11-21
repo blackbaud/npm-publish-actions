@@ -53,6 +53,15 @@ for tgz in "$PACKAGES_DIR"/*.tgz; do
                  | join(", ")' <<<"$json") \
     || fail "$id: publishConfig in package.json is not an object."
   [[ -z $other ]] || fail "$id sets $other in publishConfig. Only access, provenance, registry and tag are allowed."
+  # verify checks the root package.json, but the build writes dist-types/package.json and can
+  # change dist/package.json, so each published manifest is checked for internal dependencies too.
+  internal=$(jq -r '[(.dependencies, .devDependencies, .peerDependencies, .optionalDependencies)
+                     // {} | to_entries[]
+                     | select((.key | startswith("@blackbaud-internal/"))
+                              or (.value | tostring | startswith("npm:@blackbaud-internal/")))
+                     | .key] | unique | join(", ")' <<<"$json") \
+    || fail "$id: a dependency list in package.json is not an object."
+  [[ -z $internal ]] || fail "$id depends on @blackbaud-internal packages, which npmjs.org consumers can't install: $internal."
   tarball[$id]=$tgz manifest[$id]=$json
 done
 for id in "${expected[@]}"; do
@@ -74,7 +83,8 @@ for id in "${expected[@]}"; do
 
   versions=$(npm view "$pkg" versions --json --registry "$registry") \
     || fail "Could not read $pkg from npm. It must already exist there before trusted publishing."
-  tag=$(VERSIONS="$versions" VERSION="$VERSION" node "$GITHUB_ACTION_PATH/dist-tag.js")
+  tag=$(VERSIONS="$versions" VERSION="$VERSION" node "$GITHUB_ACTION_PATH/dist-tag.js") \
+    || fail "$id: $tag."
   # npm publishes under a top-level "tag" in package.json in place of --tag.
   jq -e --arg t "$tag" '(.tag // $t) == $t' <<<"${manifest[$id]}" >/dev/null \
     || fail "$id sets \"tag\" in package.json, which would replace its dist-tag $tag."

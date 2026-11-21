@@ -14,8 +14,11 @@ repo=$GITHUB_REPOSITORY sha=$GITHUB_SHA tag=$GITHUB_REF_NAME
 
 # 1. The tag is exactly the package.json version (template: "Enforce matching versions").
 manifest=$(gh api "repos/$repo/contents/package.json?ref=$sha" --jq .content | base64 -d)
-name=$(jq -r .name <<<"$manifest")
+name=$(jq -r '.name // ""' <<<"$manifest")
 version=$(jq -r .version <<<"$manifest")
+# A valid npm name also can't carry a newline into GITHUB_OUTPUT.
+[[ $name =~ ^(@[a-z0-9~-][a-z0-9._~-]*/)?[a-z0-9~-][a-z0-9._~-]*$ ]] \
+  || fail "package.json name '$name' is not a valid npm package name."
 [[ $tag == "$version" ]] || fail "Tag $tag does not match package.json version $version."
 
 # 2. Each pipelineSettings flag publishes its own package, independent of the other.
@@ -94,23 +97,33 @@ signed=$(gh api "repos/$repo/commits/$sha" --jq '.commit.verification.verified a
 #    is checked out. verify-commit also accepts a key that has since expired (EXPKEYSIG), so the
 #    gpg status must be GOODSIG. That rejects the web-flow key retired on 2024-01-16, which signs
 #    nothing new, along with any merge commit made before then.
+#    The fetch authenticates with GH_TOKEN, so private repos work. git reads the auth header from
+#    GIT_CONFIG_* environment variables, scoped to the server URL, so the token appears in no
+#    command line or config file. The encoded header is masked because Actions only masks the
+#    token itself.
 GNUPGHOME=$(mktemp -d) gitdir=$(mktemp -d)
 export GNUPGHOME
 curl -fsSL https://github.com/web-flow.gpg | gpg --batch --quiet --import \
   || fail "Could not import GitHub's web-flow signing key."
 git init -q "$gitdir"
-git -C "$gitdir" fetch -q --depth=1 --filter=tree:0 --no-tags "$GITHUB_SERVER_URL/$repo" "$sha" \
+basic=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+echo "::add-mask::$basic"
+GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader" \
+  GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $basic" \
+  git -C "$gitdir" fetch -q --depth=1 --filter=tree:0 --no-tags "$GITHUB_SERVER_URL/$repo" "$sha" \
   || fail "Could not fetch $sha."
 sig=$(git -C "$gitdir" verify-commit --raw "$sha" 2>&1) || fail "$sha does not carry a valid web-flow signature."
 grep -q '^\[GNUPG:\] GOODSIG ' <<<"$sig" || fail "$sha is not signed with GitHub's current web-flow key."
 
-# 8. Approved by someone other than the author. As on GitHub, each reviewer's latest approving,
-#    change-requesting or dismissed review is their verdict; comments don't change it.
+# 8. Approved by someone other than the author, on the PR head, so the approval covers the code
+#    that merged. As on GitHub, each reviewer's latest approving, change-requesting or dismissed
+#    review is their verdict; comments don't change it.
 approvals=$(gh api --paginate "repos/$repo/pulls/$number/reviews?per_page=100" \
-  | jq -s --arg a "$author" '[add // [] | .[]
+  | jq -s --arg a "$author" --arg head "$head" '[add // [] | .[]
       | select(.user.login != $a and (.state | IN("APPROVED", "CHANGES_REQUESTED", "DISMISSED")))]
-    | group_by(.user.login) | map(max_by(.submitted_at) | select(.state == "APPROVED")) | length')
-(( approvals > 0 )) || fail "PR #$number has no approval from anyone but $author."
+    | group_by(.user.login)
+    | map(max_by(.submitted_at) | select(.state == "APPROVED" and .commit_id == $head)) | length')
+(( approvals > 0 )) || fail "PR #$number has no approval of its head commit $head from anyone but $author."
 
 # Steps 9 and 10 judge the PR head's check runs and commit statuses. As on GitHub, only the
 # newest result of each counts, so a re-run that passed replaces an earlier failure. Check run ids
