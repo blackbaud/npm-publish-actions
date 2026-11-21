@@ -14,7 +14,7 @@ fail() {
 }
 
 template_path=.agents/skills/release/npm-publish.yml
-action_ref=engineeringsystem/spm-publish-actions/
+action_ref=blackbaud/npm-publish-actions/
 
 [[ $# -eq 2 ]] || fail "usage: notes.sh <preflight-output> <summary.md>"
 [[ -s $2 ]] || fail "summary file $2 is missing or empty"

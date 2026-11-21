@@ -1,6 +1,6 @@
 # Publishes this repo's public npm packages when a version tag is pushed.
 # - Do not rename: npm trusted publishing matches this filename.
-# - Changes need approval from @engineeringsystem/ptg-es-team-all-skyuxservices.
+# - Changes need approval from @blackbaud/skyux-maintainers.
 # - Job permissions and the environment live here, because actions can't set them.
 name: npm-publish
 
@@ -27,7 +27,7 @@ jobs:
       node-version: ${{ steps.verify.outputs.node-version }}
     steps:
       - id: verify
-        uses: engineeringsystem/spm-publish-actions/verify@RELEASE_SHA # RELEASE_TAG
+        uses: blackbaud/npm-publish-actions/verify@RELEASE_SHA # RELEASE_TAG
 
   build:
     needs: verify
@@ -36,7 +36,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: engineeringsystem/spm-publish-actions/build@RELEASE_SHA # RELEASE_TAG
+      - uses: blackbaud/npm-publish-actions/build@RELEASE_SHA # RELEASE_TAG
         with:
           name: ${{ needs.verify.outputs.name }}
           version: ${{ needs.verify.outputs.version }}
@@ -57,7 +57,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: engineeringsystem/spm-publish-actions/publish@RELEASE_SHA # RELEASE_TAG
+      - uses: blackbaud/npm-publish-actions/publish@RELEASE_SHA # RELEASE_TAG
         with:
           name: ${{ needs.verify.outputs.name }}
           version: ${{ needs.verify.outputs.version }}
