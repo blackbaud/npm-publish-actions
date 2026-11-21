@@ -1,11 +1,11 @@
 ---
 name: release
-description: Use when creating a new release of spm-publish-actions, such as when asked to release, cut or tag version X.Y.Z, or to draft its GitHub release notes.
+description: Use when creating a new release of npm-publish-actions, such as when asked to release, cut or tag version X.Y.Z, or to draft its GitHub release notes.
 argument-hint: <version>
 disable-model-invocation: true
 ---
 
-# Release spm-publish-actions
+# Release npm-publish-actions
 
 A release is a **draft** GitHub release `vX.Y.Z` targeting the commit at the tip of the default branch. Its notes are the only place consumers get the workflow. The notes carry `npm-publish.yml` with every `uses:` pinned to that commit's full SHA. No floating `v1` tag exists. The user reviews the draft and publishes it, and publishing creates the tag.
 
